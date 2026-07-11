@@ -7,25 +7,21 @@ import pydeck as pdk
 st.set_page_config(page_title="실시간 항공 레이더", layout="wide")
 st.title("✈️ 실시간 한반도 비행기 레이더")
 
-# 2. 데이터 가져오기 함수 
+# 2. 데이터 가져오기 및 전처리 함수 
 @st.cache_data(ttl=60)
 def get_flight_data():
     url = "https://opensky-network.org/api/states/all?lamin=33.0&lomin=124.0&lamax=39.0&lomax=132.0"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     
-    # 💡 [필수 수정] OpenSky 홈페이지에서 가입한 아이디와 비밀번호를 입력하세요.
-    # 익명 요청은 서버 상황에 따라 자주 차단되거나 지연됩니다.
-    username = "본인의_아이디를_여기에_입력하세요"
-    password = "본인의_비밀번호를_여기에_입력하세요"
+    # OpenSky 계정 정보 (가입 후 입력 권장)
+    username = ""  
+    password = ""  
     
     try:
-        # timeout을 15초에서 30초로 늘리고, auth 파라미터를 추가했습니다.
-        if username == "본인의_아이디를_여기에_입력하세요":
-            # 계정 정보가 없으면 익명으로 요청 (타임아웃 30초)
-            response = requests.get(url, headers=headers, timeout=30)
-        else:
-            # 계정 정보가 있으면 인증 요청 (접속 성공률 대폭 상승)
+        if username and password:
             response = requests.get(url, headers=headers, auth=(username, password), timeout=30)
+        else:
+            response = requests.get(url, headers=headers, timeout=30)
             
         response.raise_for_status()
         data = response.json()
@@ -36,10 +32,17 @@ def get_flight_data():
                 'longitude', 'latitude', 'baro_altitude', 'on_ground', 'velocity', 
                 'true_track', 'vertical_rate', 'sensors', 'geo_altitude', 'squawk', 'spi', 'position_source'
             ]
+            # API 데이터를 데이터프레임으로 변환
             df = pd.DataFrame(data['states'], columns=columns)
             
+            # --- [여기서부터 직접 작성하신 전처리 로직 적용] ---
+            # 1. 지상에 있는 비행기 제외
             df = df[df['on_ground'] == False]
-            df = df.dropna(subset=['latitude', 'longitude', 'baro_altitude'])
+            
+            # 2. 필수 데이터 결측치 행 제거 
+            df = df.dropna(subset=['latitude', 'longitude', 'vertical_rate', 'baro_altitude'])
+            
+            # 3. 빈 콜사인(호출부호) 문자열 처리
             df['callsign'] = df['callsign'].apply(
                 lambda x: x.strip() if isinstance(x, str) and x.strip() else "알 수 없음"
             )
@@ -52,7 +55,7 @@ def get_flight_data():
     return pd.DataFrame()
 
 # 3. 데이터 로드
-with st.spinner("비행기 데이터를 불러오는 중..."):
+with st.spinner("비행기 데이터를 불러오는 중... (서버 상황에 따라 최대 30초 소요)"):
     df = get_flight_data()
 
 # 4. 지도 시각화
@@ -66,7 +69,7 @@ view_state = pdk.ViewState(
 layers = []
 
 if not df.empty:
-    st.success(f"현재 한반도 상공에 **{len(df)}대**의 비행기가 있습니다!")
+    st.success(f"현재 한반도 상공에서 비행 중인 정상 데이터는 **{len(df)}대**입니다!")
     layer = pdk.Layer(
         "ScatterplotLayer",
         data=df,
@@ -83,7 +86,7 @@ st.pydeck_chart(pdk.Deck(
     layers=layers,
     initial_view_state=view_state,
     map_style="dark", 
-    tooltip={"text": "항공편: {callsign}\n국적: {origin_country}\n고도: {baro_altitude}m"} if not df.empty else None
+    tooltip={"text": "항공편: {callsign}\n국적: {origin_country}\n고도: {baro_altitude}m\n수직속도: {vertical_rate}m/s"} if not df.empty else None
 ))
 
 if st.button("🔄 데이터 새로고침"):
