@@ -10,7 +10,7 @@ st.title("✈️ 실시간 한반도 비행기 레이더")
 # 2. 데이터 가져오기 함수 
 @st.cache_data(ttl=60)
 def get_flight_data():
-    url = "https://opensky-network.org/api/states/all?lamin=33.0&lomin=124.0&lamax=39.0&lamax=132.0"
+    url = "https://opensky-network.org/api/states/all?lamin=33.0&lomin=124.0&lamax=39.0&lomax=132.0"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     
     try:
