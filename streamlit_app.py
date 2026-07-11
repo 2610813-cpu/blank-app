@@ -13,8 +13,20 @@ def get_flight_data():
     url = "https://opensky-network.org/api/states/all?lamin=33.0&lomin=124.0&lamax=39.0&lomax=132.0"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     
+    # 💡 [필수 수정] OpenSky 홈페이지에서 가입한 아이디와 비밀번호를 입력하세요.
+    # 익명 요청은 서버 상황에 따라 자주 차단되거나 지연됩니다.
+    username = "본인의_아이디를_여기에_입력하세요"
+    password = "본인의_비밀번호를_여기에_입력하세요"
+    
     try:
-        response = requests.get(url, headers=headers, timeout=15)
+        # timeout을 15초에서 30초로 늘리고, auth 파라미터를 추가했습니다.
+        if username == "본인의_아이디를_여기에_입력하세요":
+            # 계정 정보가 없으면 익명으로 요청 (타임아웃 30초)
+            response = requests.get(url, headers=headers, timeout=30)
+        else:
+            # 계정 정보가 있으면 인증 요청 (접속 성공률 대폭 상승)
+            response = requests.get(url, headers=headers, auth=(username, password), timeout=30)
+            
         response.raise_for_status()
         data = response.json()
         
@@ -67,7 +79,6 @@ if not df.empty:
 else:
     st.warning("현재 수신된 실시간 비행기 데이터가 없습니다. (API 서버 지연 또는 비행기 없음)")
 
-# [수정됨] map_style을 스트림릿 기본 제공인 "dark"로 변경했습니다.
 st.pydeck_chart(pdk.Deck(
     layers=layers,
     initial_view_state=view_state,
