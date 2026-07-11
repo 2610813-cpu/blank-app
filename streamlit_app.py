@@ -7,14 +7,21 @@ import pydeck as pdk
 st.set_page_config(page_title="실시간 항공 레이더", layout="wide")
 st.title("✈️ 실시간 한반도 비행기 레이더")
 
+# 기존 코드의 2번 데이터 가져오기 함수 부분을 아래 코드로 바꿔치기 하세요.
+
 # 2. 데이터 가져오기 함수 (캐싱 적용: API 차단 방지)
 @st.cache_data(ttl=60)
 def get_flight_data():
     # 한반도 상공 위경도 범위 설정
     url = "https://opensky-network.org/api/states/all?lamin=33.0&lomin=124.0&lamax=39.0&lomax=132.0"
     
+    # [추가된 부분 1] 로봇이 아님을 증명하는 이름표(User-Agent) 달기
+    headers = {'User-Agent': 'Python-Streamlit-StudentProject/1.0'}
+    
     try:
-        response = requests.get(url, timeout=10)
+        # [수정된 부분 2] headers를 포함하고, 기다리는 시간(timeout)을 10초에서 30초로 넉넉하게 늘림
+        response = requests.get(url, headers=headers, timeout=30)
+        
         response.raise_for_status()
         data = response.json()
         
@@ -26,11 +33,8 @@ def get_flight_data():
             ]
             df = pd.DataFrame(data['states'], columns=columns)
             
-            # [전처리] 지상에 있는 비행기 제외 및 필수 데이터 결측치 제거
             df = df[df['on_ground'] == False]
             df = df.dropna(subset=['latitude', 'longitude', 'baro_altitude'])
-            
-            # callsign(항공편명) 깔끔하게 정리 (비어있으면 '알 수 없음'으로 표시)
             df['callsign'] = df['callsign'].apply(
                 lambda x: x.strip() if isinstance(x, str) and x.strip() else "알 수 없음"
             )
@@ -40,7 +44,7 @@ def get_flight_data():
         st.error(f"데이터를 가져오는 중 오류가 발생했습니다: {e}")
         return None
         
-    return pd.DataFrame() # 데이터가 전혀 없을 경우 빈 표 반환
+    return pd.DataFrame()
 
 # 3. 데이터 로드 및 안내 문구
 with st.spinner("하늘에 있는 비행기들을 찾고 있습니다..."):
