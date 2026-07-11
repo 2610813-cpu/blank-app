@@ -13,6 +13,7 @@ def get_flight_data():
     url = "https://opensky-network.org/api/states/all?lamin=33.0&lomin=124.0&lamax=39.0&lomax=132.0"
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
     
+    # OpenSky 가입 후 아이디/비밀번호를 넣으면 호출 제한이 크게 완화됩니다.
     username = ""  
     password = ""  
     
@@ -46,15 +47,26 @@ def get_flight_data():
             )
 
             # 4. Z-스코어 기반 이상치(Outlier) 제거 
-            # 센서 오류로 고도(baro_altitude)가 비정상적으로 튀는 데이터 제거 (Z-score 3 기준)
-            if len(df) > 1: # 데이터가 2개 이상일 때만 표준편차 계산 가능
-                z_scores = (df['baro_altitude'] - df['baro_altitude'].mean()) / df['baro_altitude'].std()
-                df = df[z_scores.abs() <= 3]
+            if len(df) > 1: 
+                std_val = df['baro_altitude'].std()
+                # 표준편차가 0인 경우(모든 고도가 같음) 나누기 오류 방지
+                if std_val > 0: 
+                    z_scores = (df['baro_altitude'] - df['baro_altitude'].mean()) / std_val
+                    df = df[z_scores.abs() <= 3]
             
             return df
             
+    except requests.exceptions.HTTPError as e:
+        if response.status_code == 429:
+            st.error("API 호출 횟수 초과 (Too Many Requests). 잠시 후 다시 시도해주세요.")
+        elif response.status_code == 403:
+            st.error("API 서버에서 접근을 차단했습니다. 계정 정보를 확인하거나 나중에 시도하세요.")
+        else:
+            st.error(f"HTTP 에러 발생: {e}")
+        return pd.DataFrame()
+        
     except Exception as e:
-        st.error(f"API 서버 접속 지연 또는 차단됨: {e}")
+        st.error(f"API 서버 접속 지연 또는 기타 에러 발생: {e}")
         return pd.DataFrame()
         
     return pd.DataFrame()
@@ -87,6 +99,7 @@ if not df.empty:
 else:
     st.warning("현재 수신된 실시간 비행기 데이터가 없습니다. (API 서버 지연 또는 비행기 없음)")
 
+# Pydeck 차트 렌더링
 st.pydeck_chart(pdk.Deck(
     layers=layers,
     initial_view_state=view_state,
@@ -94,6 +107,7 @@ st.pydeck_chart(pdk.Deck(
     tooltip={"text": "항공편: {callsign}\n국적: {origin_country}\n고도: {baro_altitude}m\n수직속도: {vertical_rate}m/s"} if not df.empty else None
 ))
 
+# 새로고침 버튼 작동 방식 수정 (최신 Streamlit 방식)
 if st.button("🔄 데이터 새로고침"):
     st.cache_data.clear()
     st.rerun()
